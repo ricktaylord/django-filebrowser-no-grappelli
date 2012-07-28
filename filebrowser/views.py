@@ -293,7 +293,7 @@ def _upload_file(request):
     from django.core.files.move import file_move_safe
     
     if request.method == 'POST':
-        folder = request.POST.get('folder')
+        folder = request.POST.get('dir')
         fb_uploadurl_re = re.compile(r'^.*(%s)' % reverse("fb_upload"))
         folder = fb_uploadurl_re.sub('', folder)
         abs_path = _check_access(request, folder)
@@ -302,7 +302,7 @@ def _upload_file(request):
             filedata.name = convert_filename(filedata.name)
             _check_access(request, abs_path, filedata.name)
             # PRE UPLOAD SIGNAL
-            filebrowser_pre_upload.send(sender=request, path=request.POST.get('folder'), file=filedata)
+            filebrowser_pre_upload.send(sender=request, path=request.POST.get('dir'), file=filedata)
             # HANDLE UPLOAD
             uploadedfile = handle_file_upload(abs_path, filedata)
             # MOVE UPLOADED FILE
@@ -312,7 +312,7 @@ def _upload_file(request):
                 new_file = smart_str(os.path.join(abs_path, uploadedfile))
                 file_move_safe(new_file, old_file)
             # POST UPLOAD SIGNAL
-            filebrowser_post_upload.send(sender=request, path=request.POST.get('folder'), file=FileObject(smart_str(os.path.join(fb_settings.DIRECTORY, folder, filedata.name))))
+            filebrowser_post_upload.send(sender=request, path=request.POST.get('dir'), file=FileObject(smart_str(os.path.join(fb_settings.DIRECTORY, folder, filedata.name))))
     return HttpResponse('True')
 
 
