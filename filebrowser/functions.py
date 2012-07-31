@@ -1,7 +1,7 @@
 # coding: utf-8
 
 # imports
-import os, re, decimal
+import os, re, decimal, shutil, logging
 from time import gmtime, strftime, localtime, mktime, time
 from urlparse import urlparse
 
@@ -66,6 +66,59 @@ def dir_from_url(value):
     return os.path.split(value)[0]
 
 
+def get_uncropped_path(value):
+    """
+    Construct the path to the uncropped source image.
+    Note this is not a version managed by fb_version, it is defined
+    separatedly by settings.UNCROPPED_SOURCE_PREFIX.
+    However note any version prefixes detected will be removed and
+    the source uncropped version will be returned.
+    
+    Returns a path relative to MEDIA_ROOT
+    """
+    # check if this file is a version of an other file
+    # if so strip it and just get the original.
+    path, filename = os.path.split(value)
+    filename, ext = os.path.splitext(filename)
+
+    abs_src_path = smart_str(os.path.join(fb_settings.MEDIA_ROOT, value))
+    if os.path.isfile(abs_src_path):
+        path, filename = os.path.split(value)
+        filename, ext = os.path.splitext(filename)
+        tmp = filename.split("_")
+        if tmp[len(tmp)-1] in ADMIN_VERSIONS:
+            # it seems like the "original" is actually a version of an other original
+            # so we strip the suffix (aka. version_perfix)
+            new_filename = filename.replace("_" + tmp[len(tmp)-1], "")
+            if os.path.isfile(smart_str(os.path.join(fb_settings.MEDIA_ROOT, path, new_filename + "_" + version_prefix + ext))):
+                # our "original" filename seem to be filename_<version> construct
+                # so we replace it with the new_filename
+                filename = new_filename
+                # if a VERSIONS_BASEDIR is set we need to strip it from the path
+                # or we get a <VERSIONS_BASEDIR>/<VERSIONS_BASEDIR>/... construct
+                if VERSIONS_BASEDIR != "":
+                        path = path.replace(VERSIONS_BASEDIR + "/", "")
+        uncropped_filename = filename + "_" + UNCROPPED_SOURCE_PREFIX + ext
+        path = os.path.join(VERSIONS_BASEDIR, path, uncropped_filename)
+        abs_dst_path = smart_str(os.path.join(fb_settings.MEDIA_ROOT, path))
+        if not os.path.isfile(abs_dst_path):
+            try:
+                shutil.copyfile(abs_src_path, abs_dst_path)
+            except IOError:
+                logging.debug(abs_src_path)
+                logging.debug(abs_dst_path)
+                #to do: handle error
+                pass
+        return path
+    else:
+        return None
+        
+def get_uncropped_dimensions(value):
+    rel_path = get_uncropped_path(value)
+    abs_path = smart_str(os.path.join(fb_settings.MEDIA_ROOT, value))
+    im = Image.open(abs_path)
+    return im.size
+    
 def get_version_path(value, version_prefix):
     """
     Construct the PATH to an Image version.
@@ -74,6 +127,9 @@ def get_version_path(value, version_prefix):
     version_filename = filename + version_prefix + ext
     Returns a path relative to MEDIA_ROOT.
     """
+    path, filename = os.path.split(value)
+    filename, ext = os.path.splitext(filename)
+
     
     if os.path.isfile(smart_str(os.path.join(fb_settings.MEDIA_ROOT, value))):
         path, filename = os.path.split(value)
@@ -303,6 +359,44 @@ def version_generator(value, version_prefix, force=None):
         return version_path
     except:
         return None
+
+def crop_image(value, x, y, w, h):
+    if STRICT_PIL:
+        from PIL import ImageFile
+    else:
+        try:
+            from PIL import ImageFile
+        except ImportError:
+            import ImageFile
+    ImageFile.MAXBLOCK = IMAGE_MAXBLOCK # default is 64k
+    
+    
+    absolute_cropped_path = smart_str(os.path.join(fb_settings.MEDIA_ROOT, value))
+    # get the uncropped image location
+    uncropped_path = get_uncropped_path(value)
+    absolute_uncropped_path = smart_str(os.path.join(fb_settings.MEDIA_ROOT, uncropped_path))
+    uncropped_dir = os.path.split(absolute_uncropped_path)[0]
+    # create a directory if necessary
+    if not os.path.isdir(uncropped_dir):
+        os.makedirs(uncropped_dir)
+        os.chmod(uncropped_dir, 0775)
+    # if uncropped image not existent, copy the version source (as yet uncropped) to create
+    try:
+        im = Image.open(absolute_uncropped_path)
+    except:
+        im = Image.open(absolute_cropped_path)
+        try:
+            im.save(absolute_uncropped_path, quality=90, optimize=(os.path.splitext(uncropped_path)[1].lower() != '.gif'))
+        except IOError:
+            im.save(absolute_uncropped_path, quality=90)
+    # crop the image
+    logging.debug((x,y,x+w,y+h))
+    im = im.crop((x,y,x+w,y+h))
+    # save crop1
+    try:
+        im.save(absolute_cropped_path, quality=90, optimize=(os.path.splitext(value)[1].lower() != '.gif'))
+    except IOError:
+        im.save(absolute_cropped_path, quality=90)
 
 
 def scale_and_crop(im, width, height, opts):

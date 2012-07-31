@@ -35,7 +35,19 @@ class MakeDirForm(forms.Form):
                 raise forms.ValidationError(_(u'The Folder already exists.'))
         return convert_filename(self.cleaned_data['dir_name'])
 
-
+class CropForm(forms.Form):
+    """ 
+    Form for cropping an image file. Intended to work with jCrop.
+    """
+    def __init__(self, path, filename, *args, **kwargs):
+        self.path = path  
+        self.filename = filename
+        super(CropForm, self).__init__(*args, **kwargs)
+    x = forms.IntegerField(widget=forms.HiddenInput())
+    y = forms.IntegerField(widget=forms.HiddenInput())
+    w = forms.IntegerField(widget=forms.HiddenInput())
+    h = forms.IntegerField(widget=forms.HiddenInput())
+    
 class RenameForm(forms.Form):
     """
     Form for renaming Folder/File.

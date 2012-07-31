@@ -1,8 +1,9 @@
 # coding: utf-8
 
 # general imports
-import os, re
+import os, re, logging
 from time import gmtime, strftime
+import Image
 
 # django imports
 from django.shortcuts import render_to_response, HttpResponse
@@ -31,7 +32,7 @@ from django.contrib import messages
 # filebrowser imports
 from filebrowser.settings import *
 from filebrowser.conf import fb_settings
-from filebrowser.functions import path_to_url, sort_by_attr, get_path, get_file, get_version_path, get_breadcrumbs, get_filterdate, get_settings_var, handle_file_upload, convert_filename
+from filebrowser.functions import path_to_url, sort_by_attr, get_path, get_file, get_version_path, get_breadcrumbs, get_filterdate, get_settings_var, handle_file_upload, convert_filename, crop_image, get_uncropped_path, get_uncropped_dimensions
 from filebrowser.templatetags.fb_tags import query_helper
 from filebrowser.base import FileObject
 from filebrowser.decorators import flash_login_required
@@ -315,6 +316,85 @@ def _upload_file(request):
             filebrowser_post_upload.send(sender=request, path=request.POST.get('dir'), file=FileObject(smart_str(os.path.join(fb_settings.DIRECTORY, folder, filedata.name))))
     return HttpResponse('True')
 
+
+
+# crop signals
+filebrowser_pre_crop = Signal(providing_args=["path", "filename", "x", "y", "w", "h"])
+filebrowser_post_crop = Signal(providing_args=["path", "filename", "x", "y", "w", "h"])
+
+def crop(request):
+    """
+    Crop existing image.
+    """
+    from filebrowser.forms import CropForm
+    # QUERY / PATH CHECK
+    query = request.GET
+    path = get_path(query.get('dir', ''))
+    filename = get_file(query.get('dir', ''), query.get('filename', ''))
+    if path is None or filename is None:
+        if path is None:
+            msg = _('The requested Folder does not exist.')
+        else:
+            msg = _('The requested File does not exist.')
+        messages.warning(request,message=msg)
+        return HttpResponseRedirect(reverse("fb_browse"))
+    abs_path = _check_access(request, path)
+    file_extension = os.path.splitext(filename)[1].lower()
+    relative_server_path = os.path.join(fb_settings.DIRECTORY, path, filename)
+    relative_url = path_to_url(relative_server_path)
+    uncropped_relative_server_path = get_uncropped_path(relative_server_path)
+    uncropped_w, uncropped_h = get_uncropped_dimensions(relative_server_path)
+    uncropped_relative_url = path_to_url(uncropped_relative_server_path)
+    
+    msg = ""
+
+    if request.method == "POST":
+        
+        form = CropForm(abs_path, file_extension, request.POST)
+        if form.is_valid():
+            x = form.cleaned_data['x']
+            y = form.cleaned_data['y']
+            w = form.cleaned_data['w']
+            h = form.cleaned_data['h']
+            try:
+                # PRE DELETE SIGNAL
+                filebrowser_pre_crop.send(sender=request, path=path, filename=filename, x=x, y=y, w=w, h=h)
+                crop_image(relative_server_path, x, y, w, h)
+                filebrowser_post_crop.send(sender=request, path=path, filename=filename, x=x, y=y, w=w, h=h)
+                # MESSAGE & REDIRECT
+                msg = _('The image file %s was successfully cropped.') % (filename.lower())
+                messages.success(request,message=msg)
+                redirect_url = reverse("fb_browse") + query_helper(query, "", "filename,filetype")
+                return HttpResponseRedirect(redirect_url)
+            except OSError, (errno, strerror):
+                form.errors['name'] = forms.util.ErrorList([_('Error.')])
+    else:
+        form = CropForm(abs_path, file_extension)
+
+                
+                
+    return render_to_response('filebrowser/crop.html', {
+        'title': _(u'Crop "%s"') % filename,
+        'form': form,
+        'query': query,
+        'dir': dir,
+        'cropped': relative_url,
+        'uncropped_width': uncropped_w,
+        'uncropped_height': uncropped_h,
+        'uncropped': uncropped_relative_url,
+        'preview_version': CROP_PREVIEW_VERSION,
+        'edit_version': CROP_EDIT_VERSION,
+        'settings_var': get_settings_var(),
+        'breadcrumbs': get_breadcrumbs(query, path),
+        'breadcrumbs_title': _(u'Crop')
+    }, context_instance=Context(request))
+        
+   
+        
+    
+crop = staff_member_required(never_cache(crop))
+
+	
 
 # delete signals
 filebrowser_pre_delete = Signal(providing_args=["path", "filename"])

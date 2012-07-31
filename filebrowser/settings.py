@@ -81,6 +81,12 @@ ADMIN_VERSIONS = getattr(settings, 'FILEBROWSER_ADMIN_VERSIONS', ['thumbnail','s
 ADMIN_THUMBNAIL = getattr(settings, 'FILEBROWSER_ADMIN_THUMBNAIL', 'fb_thumb')
 # Preview Version
 PREVIEW_VERSION = getattr(settings, 'FILEBROWSER_PREVIEW_VERSION', 'small')
+# Crop edit screen version
+CROP_EDIT_VERSION = getattr(settings, 'FILEBROWSER_CROP_EDIT_VERSION', 'big')
+# Crop preview version
+CROP_PREVIEW_VERSION = getattr(settings, 'FILEBROWSER_CROP_PREVIEW_VERSION', 'small')
+# Uncropped image label
+UNCROPPED_SOURCE_PREFIX = getattr(settings, 'FILEBROWSER_UNCROPPED_SOURCE_PREFIX', 'uncropped')
 
 # EXTRA SETTINGS
 # True to save the URL including MEDIA_URL to your model fields

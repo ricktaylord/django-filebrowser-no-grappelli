@@ -19,13 +19,17 @@ register = Library()
 
 
 class VersionNode(Node):
-    def __init__(self, src, version_prefix):
+    def __init__(self, src, version_prefix, *args, **kwargs):
         self.src = Variable(src)
         if (version_prefix[0] == version_prefix[-1] and version_prefix[0] in ('"', "'")):
             self.version_prefix = version_prefix[1:-1]
         else:
             self.version_prefix = None
             self.version_prefix_var = Variable(version_prefix)
+        if 'uncropped' in kwargs and kwargs['uncropped']=="true":
+            self.uncropped = True
+        else:
+            self.uncropped = False
         
     def render(self, context):
         try:
