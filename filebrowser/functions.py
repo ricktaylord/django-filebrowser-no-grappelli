@@ -115,7 +115,7 @@ def get_uncropped_path(value):
         
 def get_uncropped_dimensions(value):
     rel_path = get_uncropped_path(value)
-    abs_path = smart_str(os.path.join(fb_settings.MEDIA_ROOT, value))
+    abs_path = smart_str(os.path.join(fb_settings.MEDIA_ROOT, rel_path))
     im = Image.open(abs_path)
     return im.size
     
@@ -381,15 +381,20 @@ def crop_image(value, x, y, w, h):
         os.makedirs(uncropped_dir)
         os.chmod(uncropped_dir, 0775)
     # if uncropped image not existent, copy the version source (as yet uncropped) to create
-    try:
+    try:    
         im = Image.open(absolute_uncropped_path)
+        logging.debug(absolute_cropped_path)
     except:
+        logging.debug("Generating source")
+        
         im = Image.open(absolute_cropped_path)
         try:
             im.save(absolute_uncropped_path, quality=90, optimize=(os.path.splitext(uncropped_path)[1].lower() != '.gif'))
         except IOError:
             im.save(absolute_uncropped_path, quality=90)
     # crop the image
+    logging.debug(im.info)
+    logging.debug(absolute_uncropped_path)
     logging.debug((x,y,x+w,y+h))
     im = im.crop((x,y,x+w,y+h))
     # save crop1
